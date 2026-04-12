@@ -1,6 +1,10 @@
+
+
 # Cognitrace
 
 Cognitrace automatically logs all interactions with AI coding assistants — prompts and responses — into a structured JSON file inside your project. No configuration required.
+
+[![Install on VS Code](https://img.shields.io/badge/Instalar%20no-VS%20Code-007ACC?logo=visual-studio-code&logoColor=white)](https://marketplace.visualstudio.com/items?itemName=schardosim.cognitrace)
 
 ## Supported assistants
 
