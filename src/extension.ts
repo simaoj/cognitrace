@@ -12,14 +12,7 @@ import {
 } from './log-utils';
 
 function resolveCopilotTranscriptsDir(workspacePath: string): string | null {
-    const workspaceStorageRoot = path.join(
-        os.homedir(),
-        'Library',
-        'Application Support',
-        'Code',
-        'User',
-        'workspaceStorage'
-    );
+    const workspaceStorageRoot = path.join(getVSCodeUserDataDir(), 'workspaceStorage');
     if (!fs.existsSync(workspaceStorageRoot)) { return null; }
 
     const expectedFolderUri = vscode.Uri.file(workspacePath).toString();
@@ -118,6 +111,16 @@ function getGitInfo(cwd: string): { branch: string; userName: string; email: str
     };
 }
 
+function getVSCodeUserDataDir(): string {
+    const platform = os.platform();
+    if (platform === 'win32') {
+        return path.join(os.homedir(), 'AppData', 'Roaming', 'Code', 'User');
+    } else if (platform === 'darwin') {
+        return path.join(os.homedir(), 'Library', 'Application Support', 'Code', 'User');
+    } else {
+        return path.join(os.homedir(), '.config', 'Code', 'User');
+    }
+}
 
 export function activate(context: vscode.ExtensionContext): void {
     const output = vscode.window.createOutputChannel('Cognitrace');
