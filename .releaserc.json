@@ -5,7 +5,7 @@
     "@semantic-release/release-notes-generator",
     ["@semantic-release/changelog", { "changelogFile": "CHANGELOG.md" }],
     ["@semantic-release/npm", { "npmPublish": false }],
-    ["@semantic-release/exec", { "publishCmd": "npx vsce publish --pat ${VSCE_PAT}" }],
+    ["@semantic-release/exec", { "publishCmd": "npx vsce publish --pat $VSCE_PAT" }],
     ["@semantic-release/git", {
       "assets": ["package.json", "CHANGELOG.md"],
       "message": "chore(release): ${nextRelease.version} [skip ci]"
