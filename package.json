@@ -11,7 +11,9 @@
     "url": "https://github.com/simaoj/cognitrace"
   },
   "engines": {
-    "vscode": "^1.107.0"
+    "vscode": "^1.107.0",
+    "yarn": "^1.22.22",
+    "node": ">=22.0.0"
   },
   "categories": [
     "Other"
