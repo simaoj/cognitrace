@@ -8,7 +8,7 @@ import {
     LogSource,
     appendToLog,
     computeProjectKey,
-    extractLogMessage,
+    extractLogMessages,
 } from './log-utils';
 
 function resolveCopilotTranscriptsDir(workspacePath: string): string | null {
@@ -204,21 +204,23 @@ export function activate(context: vscode.ExtensionContext): void {
 
             for (const line of buf.toString('utf8').split('\n')) {
                 if (!line.trim()) { continue; }
-                const message = extractLogMessage(line, source);
-                if (!message) { continue; }
+                const messages = extractLogMessages(line, source);
+                if (!messages.length) { continue; }
 
                 const git = getGitInfo(workspacePath);
-                const entry: LogEntry = {
-                    timestamp: new Date().toISOString(),
-                    source,
-                    git_branch: git.branch,
-                    git_user_name: git.userName,
-                    call_context: { cwd: workspacePath },
-                    role: message.role,
-                    content: message.content,
-                };
-                output.appendLine(`[AI Log] Logged ${entry.role}: ${entry.content.slice(0, 60)}...`);
-                appendToLog(logDir, entry);
+                for (const message of messages) {
+                    const entry: LogEntry = {
+                        timestamp: message.timestamp ?? new Date().toISOString(),
+                        source,
+                        git_branch: git.branch,
+                        git_user_name: git.userName,
+                        call_context: { cwd: workspacePath },
+                        role: message.role,
+                        content: message.content,
+                    };
+                    output.appendLine(`[AI Log] Logged ${entry.role}: ${entry.content.slice(0, 60)}...`);
+                    appendToLog(logDir, entry);
+                }
             }
         } finally {
             fs.closeSync(fd);

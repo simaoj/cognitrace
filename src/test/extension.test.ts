@@ -5,6 +5,7 @@ import * as path from 'path';
 import {
     stripContextTags,
     extractClaudeText,
+    extractLogMessages,
     extractLogMessage,
     appendToLog,
     buildLogFilePath,
@@ -235,6 +236,65 @@ suite('extractLogMessage (github_copilot)', () => {
         const line = JSON.stringify({ kind: 99, k: ['other'] });
         assert.strictEqual(extractLogMessage(line, 'github_copilot'), null);
     });
+
+    test('extracts user and assistant messages from a requests event', () => {
+        const line = JSON.stringify({
+            kind: 2,
+            k: ['requests'],
+            v: [{
+                timestamp: '2026-05-09T14:30:00.000Z',
+                message: { text: 'what does this do?' },
+                renderedUserMessage: 'what does this do?',
+                response: [{ value: 'It explains the code.', supportThemeIcons: true }],
+                renderedAssistantMessage: 'It explains the code.',
+            }],
+        });
+
+        assert.deepStrictEqual(extractLogMessages(line, 'github_copilot'), [
+            { role: 'user', content: 'what does this do?', timestamp: '2026-05-09T14:30:00.000Z' },
+            { role: 'assistant', content: 'It explains the code.', timestamp: '2026-05-09T14:30:00.000Z' },
+        ]);
+    });
+
+    test('extracts messages when requests are nested inside an object payload', () => {
+        const line = JSON.stringify({
+            kind: 2,
+            k: ['requests'],
+            v: {
+                requests: [{
+                    renderedUserMessage: 'show me the bug',
+                    renderedAssistantMessage: 'Here is the fix.',
+                }],
+            },
+        });
+
+        assert.deepStrictEqual(extractLogMessages(line, 'github_copilot'), [
+            { role: 'user', content: 'show me the bug' },
+            { role: 'assistant', content: 'Here is the fix.' },
+        ]);
+    });
+
+    test('extracts messages from deeper wrapped request payloads', () => {
+        const line = JSON.stringify({
+            kind: 2,
+            k: ['requests'],
+            v: {
+                payload: {
+                    requests: [{
+                        text: 'how does the parser work?',
+                        response: {
+                            renderedMessage: 'It walks each request and emits entries.',
+                        },
+                    }],
+                },
+            },
+        });
+
+        assert.deepStrictEqual(extractLogMessages(line, 'github_copilot'), [
+            { role: 'user', content: 'how does the parser work?' },
+            { role: 'assistant', content: 'It walks each request and emits entries.' },
+        ]);
+    });
 });
 
 // ---------------------------------------------------------------------------
@@ -244,15 +304,21 @@ suite('extractLogMessage (github_copilot)', () => {
 suite('extractLogMessage (codex)', () => {
     test('parses a user message', () => {
         const line = JSON.stringify({
+            timestamp: '2026-05-09T14:30:00.000Z',
             type: 'event_msg',
             payload: { type: 'user_message', message: 'refactor this' },
         });
         const result = extractLogMessage(line, 'codex');
-        assert.deepStrictEqual(result, { role: 'user', content: 'refactor this' });
+        assert.deepStrictEqual(result, {
+            role: 'user',
+            content: 'refactor this',
+            timestamp: '2026-05-09T14:30:00.000Z',
+        });
     });
 
     test('parses an assistant response', () => {
         const line = JSON.stringify({
+            timestamp: '2026-05-09T14:30:05.000Z',
             type: 'response_item',
             payload: {
                 type: 'message',
@@ -261,7 +327,11 @@ suite('extractLogMessage (codex)', () => {
             },
         });
         const result = extractLogMessage(line, 'codex');
-        assert.deepStrictEqual(result, { role: 'assistant', content: 'here you go' });
+        assert.deepStrictEqual(result, {
+            role: 'assistant',
+            content: 'here you go',
+            timestamp: '2026-05-09T14:30:05.000Z',
+        });
     });
 
     test('returns null when assistant content has no output_text', () => {
