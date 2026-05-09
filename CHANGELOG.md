@@ -1,3 +1,17 @@
+# 1.0.0 (2026-05-09)
+
+
+### Bug Fixes
+
+* use correct timestamp ([10e852a](https://github.com/simaoj/cognitrace/commit/10e852a36bc1c31bf412f9de5d91393b58581b20))
+
+
+### Features
+
+* add antigravity support ([5c60b1a](https://github.com/simaoj/cognitrace/commit/5c60b1a0d2ec70234c9f87a9c5190442a4dfee86))
+* add cross-platform copilot support ([f20c492](https://github.com/simaoj/cognitrace/commit/f20c4920f4135b5c0f9c87b2aa7281baf9707e53))
+* published extension ([1451bc3](https://github.com/simaoj/cognitrace/commit/1451bc3463fbd87808bcc80a69aac0758e2dbcb5))
+
 # Change Log
 
 All notable changes to the "ai-prompt-auto-log" extension will be documented in this file.
