@@ -96,6 +96,15 @@ function isCodexSessionForWorkspace(filePath: string, workspacePath: string): bo
     }
 }
 
+function isAntigravitySessionForWorkspace(filePath: string, workspacePath: string): boolean {
+    try {
+        const content = fs.readFileSync(filePath, 'utf8');
+        return content.includes(workspacePath);
+    } catch {
+        return false;
+    }
+}
+
 function getGitInfo(cwd: string): { branch: string; userName: string; email: string } {
     const run = (cmd: string): string => {
         try {
@@ -137,20 +146,24 @@ export function activate(context: vscode.ExtensionContext): void {
     const claudeProjectDir = path.join(os.homedir(), '.claude', 'projects', projectKey);
     const copilotTranscriptsDir = resolveCopilotTranscriptsDir(workspacePath);
     const codexSessionsDir = getCodexSessionsDirIfReady();
+    const antigravityBrainDir = path.join(os.homedir(), '.gemini', 'antigravity', 'brain');
     const logDir = path.join(workspacePath, '.ai_log');
 
     output.appendLine(`[AI Log] Workspace: ${workspacePath}`);
     output.appendLine(`[AI Log] Watching Claude dir: ${claudeProjectDir}`);
     output.appendLine(`[AI Log] Watching Copilot dir: ${copilotTranscriptsDir ?? 'not found'}`);
     output.appendLine(`[AI Log] Watching Codex dir: ${codexSessionsDir ?? 'not found'}`);
+    output.appendLine(`[AI Log] Watching Antigravity dir: ${fs.existsSync(antigravityBrainDir) ? antigravityBrainDir : 'not found'}`);
     output.appendLine(`[AI Log] Log dir: ${logDir}`);
 
     // Track the byte offset already read per JSONL file
     const fileOffsets = new Map<string, number>();
     const codexWorkspaceFiles = new Map<string, boolean>();
+    const antigravityWorkspaceFiles = new Map<string, boolean>();
+    const antigravityLastCheckedSize = new Map<string, number>();
 
     function processFile(filePath: string, source: LogSource): void {
-        if (!filePath.endsWith('.jsonl')) { return; }
+        if (!filePath.endsWith('.jsonl') && !filePath.endsWith('overview.txt')) { return; }
 
         if (source === 'codex') {
             const knownWorkspaceFile = codexWorkspaceFiles.get(filePath);
@@ -165,6 +178,19 @@ export function activate(context: vscode.ExtensionContext): void {
 
         let stat: fs.Stats;
         try { stat = fs.statSync(filePath); } catch { return; }
+
+        if (source === 'antigravity' && antigravityWorkspaceFiles.get(filePath) !== true) {
+            const lastChecked = antigravityLastCheckedSize.get(filePath) ?? 0;
+            if (stat.size <= lastChecked) { return; }
+            
+            const isWorkspaceFile = isAntigravitySessionForWorkspace(filePath, workspacePath);
+            antigravityLastCheckedSize.set(filePath, stat.size);
+            if (isWorkspaceFile) {
+                antigravityWorkspaceFiles.set(filePath, true);
+            } else {
+                return;
+            }
+        }
 
         const offset = fileOffsets.get(filePath) ?? 0;
         output.appendLine(`[AI Log] processFile: ${path.basename(filePath)} source=${source} size=${stat.size} offset=${offset}`);
@@ -226,7 +252,7 @@ export function activate(context: vscode.ExtensionContext): void {
                     continue;
                 }
 
-                if (entry.name.endsWith('.jsonl')) {
+                if (entry.name.endsWith('.jsonl') || entry.name === 'overview.txt') {
                     processFile(full, source);
                     watchFile(full, source);
                 }
@@ -271,7 +297,7 @@ export function activate(context: vscode.ExtensionContext): void {
         // Watch directory for new JSONL files being created
         const dirWatcher = fs.watch(dir, { persistent: false }, (_event, filename) => {
             output.appendLine(`[AI Log] ${label} dir event: event=${_event} file=${filename}`);
-            if (filename && filename.endsWith('.jsonl')) {
+            if (filename && (filename.endsWith('.jsonl') || filename === 'overview.txt')) {
                 const full = path.join(dir, filename);
                 processFile(full, source);
                 watchFile(full, source);
@@ -326,6 +352,25 @@ export function activate(context: vscode.ExtensionContext): void {
         context.subscriptions.push({ dispose: () => { clearTimeout(retry); pendingWatcherRetries.delete(retryKey); } });
     };
     startCodex();
+
+    const startAntigravity = (): void => {
+        if (fs.existsSync(antigravityBrainDir)) {
+            startWatcher(antigravityBrainDir, 'antigravity', 'Antigravity', true);
+            return;
+        }
+
+        const retryKey = 'antigravity:workspace';
+        if (!pendingWatcherRetries.has(retryKey)) {
+            output.appendLine('[AI Log] Antigravity brain dir not ready yet, waiting for first session...');
+        }
+        const retry = setTimeout(() => {
+            pendingWatcherRetries.delete(retryKey);
+            startAntigravity();
+        }, 15_000);
+        pendingWatcherRetries.set(retryKey, retry);
+        context.subscriptions.push({ dispose: () => { clearTimeout(retry); pendingWatcherRetries.delete(retryKey); } });
+    };
+    startAntigravity();
 }
 
 export function deactivate(): void {}

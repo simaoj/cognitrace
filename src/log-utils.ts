@@ -3,7 +3,7 @@ import * as path from 'path';
 
 export interface LogEntry {
     timestamp: string;
-    source: 'claude' | 'github_copilot' | 'codex';
+    source: 'claude' | 'github_copilot' | 'codex' | 'antigravity';
     git_branch: string;
     git_user_name: string;
     call_context: { cwd: string };
@@ -110,6 +110,22 @@ export function extractLogMessage(
             return { role: 'assistant', content: visibleParts.join('\n') };
         }
 
+        return null;
+    }
+
+    if (source === 'antigravity') {
+        if (msg.source === 'USER_EXPLICIT' && msg.type === 'USER_INPUT' && typeof msg.content === 'string') {
+            const match = msg.content.match(/<USER_REQUEST>([\s\S]*?)<\/USER_REQUEST>/);
+            if (match && match[1].trim()) {
+                return { role: 'user', content: match[1].trim() };
+            }
+            if (msg.content.trim()) {
+                return { role: 'user', content: msg.content.trim() };
+            }
+        }
+        if (msg.source === 'MODEL' && typeof msg.content === 'string' && msg.content.trim()) {
+            return { role: 'assistant', content: msg.content.trim() };
+        }
         return null;
     }
 

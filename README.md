@@ -11,6 +11,7 @@ Cognitrace automatically logs all interactions with AI coding assistants — pro
 - **Claude Code** (VS Code extension and CLI)
 - **GitHub Copilot Chat**
 - **OpenAI Codex CLI**
+- **Antigravity**
 
 ## How it works
 
@@ -50,7 +51,7 @@ Each log file is named `prompt_log_YYYY-MM-DD_<git-username>.json` and contains 
 | Field | Description |
 |---|---|
 | `timestamp` | ISO 8601 timestamp of when the message was captured |
-| `source` | Which assistant produced the message (`claude`, `github_copilot`, `codex`) |
+| `source` | Which assistant produced the message (`claude`, `github_copilot`, `codex`, `antigravity`) |
 | `git_branch` | Active git branch at the time of the interaction |
 | `git_user_name` | Git user name from the workspace config |
 | `call_context.cwd` | Absolute path of the workspace |
