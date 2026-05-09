@@ -1,3 +1,10 @@
+## [1.0.1](https://github.com/simaoj/cognitrace/compare/v1.0.0...v1.0.1) (2026-05-09)
+
+
+### Bug Fixes
+
+* semantic release ([a73b61d](https://github.com/simaoj/cognitrace/commit/a73b61dc9e0cdfaa7ccc9cbf48e6a1ddfa22224b))
+
 # 1.0.0 (2026-05-09)
 
 
