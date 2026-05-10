@@ -1,3 +1,10 @@
+# [1.1.0](https://github.com/simaoj/cognitrace/compare/v1.0.1...v1.1.0) (2026-05-10)
+
+
+### Features
+
+* release new version ([6d531e6](https://github.com/simaoj/cognitrace/commit/6d531e6e61f4373b222e763a68ea2e0f19514358))
+
 ## [1.0.1](https://github.com/simaoj/cognitrace/compare/v1.0.0...v1.0.1) (2026-05-09)
 
 
