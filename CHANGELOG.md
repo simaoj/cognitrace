@@ -1,3 +1,10 @@
+# [1.2.0](https://github.com/simaoj/cognitrace/compare/v1.1.0...v1.2.0) (2026-08-08)
+
+
+### Features
+
+* add support to questions and project enabling ([cc16cc3](https://github.com/simaoj/cognitrace/commit/cc16cc3a557f2d9b6315401bcfa503ec1454673c))
+
 # [1.1.0](https://github.com/simaoj/cognitrace/compare/v1.0.1...v1.1.0) (2026-05-10)
 
 
