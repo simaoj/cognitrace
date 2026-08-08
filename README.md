@@ -2,7 +2,7 @@
 
 # Cognitrace
 
-Cognitrace automatically logs all interactions with AI coding assistants — prompts and responses — into a structured JSON file inside your project. No configuration required.
+Cognitrace logs interactions with AI coding assistants — prompts and responses — into a structured JSON file inside your project.
 
 [![Install on VS Code](https://img.shields.io/badge/Instalar%20no-VS%20Code-007ACC?logo=visual-studio-code&logoColor=white)](https://marketplace.visualstudio.com/items?itemName=schardosim.cognitrace)
 
@@ -13,9 +13,18 @@ Cognitrace automatically logs all interactions with AI coding assistants — pro
 - **OpenAI Codex CLI**
 - **Antigravity**
 
+## Enabling logging for a project
+
+Logging is **off by default** for every project. To turn it on:
+
+1. Click the Cognitrace icon in the Activity Bar (left-hand sidebar).
+2. Click **Enable for this project**.
+
+This writes `"cognitrace.enabled": true` to the workspace's `.vscode/settings.json`, so the choice is per-project and stored alongside the project itself. Use the same panel to disable logging again at any time.
+
 ## How it works
 
-When activated, Cognitrace watches the session files that each AI assistant writes locally and captures every user message and assistant response. Logs are written to a `.ai_log/` folder at the root of your workspace.
+Once enabled, Cognitrace watches the session files that each AI assistant writes locally and captures every user message and assistant response. Logs are written to a `.ai_log/` folder at the root of your workspace.
 
 ## Log format
 

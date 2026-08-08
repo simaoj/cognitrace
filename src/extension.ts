@@ -10,6 +10,7 @@ import {
     computeProjectKey,
     extractLogMessages,
 } from './log-utils';
+import { ConfigViewProvider } from './config-view';
 
 function resolveCopilotTranscriptsDir(workspacePath: string): string | null {
     const workspaceStorageRoot = path.join(getVSCodeUserDataDir(), 'workspaceStorage');
@@ -131,9 +132,19 @@ function getVSCodeUserDataDir(): string {
     }
 }
 
+function isLoggingEnabled(workspaceFolder: vscode.WorkspaceFolder): boolean {
+    return vscode.workspace
+        .getConfiguration('cognitrace', workspaceFolder.uri)
+        .get<boolean>('enabled', false);
+}
+
 export function activate(context: vscode.ExtensionContext): void {
     const output = vscode.window.createOutputChannel('Cognitrace');
     context.subscriptions.push(output);
+
+    context.subscriptions.push(
+        vscode.window.registerWebviewViewProvider(ConfigViewProvider.viewType, new ConfigViewProvider())
+    );
 
     const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
     if (!workspaceFolder) {
@@ -142,6 +153,41 @@ export function activate(context: vscode.ExtensionContext): void {
     }
 
     const workspacePath = workspaceFolder.uri.fsPath;
+
+    let loggingSession: vscode.Disposable | undefined;
+
+    function syncLoggingState(): void {
+        const enabled = isLoggingEnabled(workspaceFolder!);
+        if (enabled && !loggingSession) {
+            output.appendLine('[AI Log] Logging enabled for this project — starting watchers.');
+            loggingSession = startLogging(output, workspacePath);
+        } else if (!enabled && loggingSession) {
+            output.appendLine('[AI Log] Logging disabled for this project — stopping watchers.');
+            loggingSession.dispose();
+            loggingSession = undefined;
+        }
+    }
+
+    context.subscriptions.push(vscode.workspace.onDidChangeConfiguration((e) => {
+        if (e.affectsConfiguration('cognitrace.enabled', workspaceFolder.uri)) {
+            syncLoggingState();
+        }
+    }));
+    context.subscriptions.push({ dispose: () => loggingSession?.dispose() });
+
+    if (!isLoggingEnabled(workspaceFolder)) {
+        output.appendLine('[AI Log] Logging is disabled for this project. Enable it from the Cognitrace icon in the Activity Bar.');
+    }
+    syncLoggingState();
+}
+
+function startLogging(output: vscode.OutputChannel, workspacePath: string): vscode.Disposable {
+    const disposables: vscode.Disposable[] = [];
+    function register<T extends vscode.Disposable>(disposable: T): T {
+        disposables.push(disposable);
+        return disposable;
+    }
+
     const projectKey = computeProjectKey(workspacePath);
     const claudeProjectDir = path.join(os.homedir(), '.claude', 'projects', projectKey);
     const copilotTranscriptsDir = resolveCopilotTranscriptsDir(workspacePath);
@@ -239,7 +285,7 @@ export function activate(context: vscode.ExtensionContext): void {
                 processFile(filePath, source);
             });
             fileWatchers.set(key, watcher);
-            context.subscriptions.push({ dispose: () => { watcher.close(); fileWatchers.delete(key); } });
+            register({ dispose: () => { watcher.close(); fileWatchers.delete(key); } });
         } catch { /* file may have been removed */ }
     }
 
@@ -288,7 +334,7 @@ export function activate(context: vscode.ExtensionContext): void {
                 startWatcher(dir, source, label, recursiveScan);
             }, 15_000);
             pendingWatcherRetries.set(retryKey, retry);
-            context.subscriptions.push({ dispose: () => { clearTimeout(retry); pendingWatcherRetries.delete(retryKey); } });
+            register({ dispose: () => { clearTimeout(retry); pendingWatcherRetries.delete(retryKey); } });
             return;
         }
 
@@ -308,11 +354,11 @@ export function activate(context: vscode.ExtensionContext): void {
                 scanDir(dir, source, recursiveScan);
             }
         });
-        context.subscriptions.push({ dispose: () => dirWatcher.close() });
+        register({ dispose: () => dirWatcher.close() });
 
         // Fallback polling every 10s in case fs.watch misses events
         const poll = setInterval(() => scanDir(dir, source, recursiveScan), 10_000);
-        context.subscriptions.push({ dispose: () => clearInterval(poll) });
+        register({ dispose: () => clearInterval(poll) });
     }
 
     startWatcher(claudeProjectDir, 'claude', 'Claude');
@@ -332,7 +378,7 @@ export function activate(context: vscode.ExtensionContext): void {
             startCopilot();
         }, 15_000);
         pendingWatcherRetries.set(retryKey, retry);
-        context.subscriptions.push({ dispose: () => { clearTimeout(retry); pendingWatcherRetries.delete(retryKey); } });
+        register({ dispose: () => { clearTimeout(retry); pendingWatcherRetries.delete(retryKey); } });
     };
     startCopilot();
     const startCodex = (): void => {
@@ -351,7 +397,7 @@ export function activate(context: vscode.ExtensionContext): void {
             startCodex();
         }, 15_000);
         pendingWatcherRetries.set(retryKey, retry);
-        context.subscriptions.push({ dispose: () => { clearTimeout(retry); pendingWatcherRetries.delete(retryKey); } });
+        register({ dispose: () => { clearTimeout(retry); pendingWatcherRetries.delete(retryKey); } });
     };
     startCodex();
 
@@ -370,9 +416,11 @@ export function activate(context: vscode.ExtensionContext): void {
             startAntigravity();
         }, 15_000);
         pendingWatcherRetries.set(retryKey, retry);
-        context.subscriptions.push({ dispose: () => { clearTimeout(retry); pendingWatcherRetries.delete(retryKey); } });
+        register({ dispose: () => { clearTimeout(retry); pendingWatcherRetries.delete(retryKey); } });
     };
     startAntigravity();
+
+    return { dispose: () => { for (const disposable of disposables) { disposable.dispose(); } } };
 }
 
 export function deactivate(): void {}

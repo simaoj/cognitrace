@@ -5,6 +5,7 @@ import * as path from 'path';
 import {
     stripContextTags,
     extractClaudeText,
+    extractClaudeInteractiveText,
     extractLogMessages,
     extractLogMessage,
     appendToLog,
@@ -150,6 +151,86 @@ suite('extractClaudeText', () => {
 });
 
 // ---------------------------------------------------------------------------
+// extractClaudeInteractiveText
+// ---------------------------------------------------------------------------
+
+suite('extractClaudeInteractiveText', () => {
+    test('formats an AskUserQuestion prompt from the assistant', () => {
+        const msg = {
+            type: 'assistant',
+            message: {
+                role: 'assistant',
+                content: [{
+                    type: 'tool_use',
+                    name: 'AskUserQuestion',
+                    input: {
+                        questions: [{
+                            question: 'Which approach?',
+                            options: [{ label: 'A' }, { label: 'B' }],
+                        }],
+                    },
+                }],
+            },
+        };
+        assert.strictEqual(extractClaudeInteractiveText(msg), 'Which approach?\nOptions: A | B');
+    });
+
+    test('joins multiple questions from a single AskUserQuestion call', () => {
+        const msg = {
+            type: 'assistant',
+            message: {
+                role: 'assistant',
+                content: [{
+                    type: 'tool_use',
+                    name: 'AskUserQuestion',
+                    input: {
+                        questions: [
+                            { question: 'Q1?', options: [{ label: 'A' }] },
+                            { question: 'Q2?', options: [{ label: 'B' }] },
+                        ],
+                    },
+                }],
+            },
+        };
+        assert.strictEqual(
+            extractClaudeInteractiveText(msg),
+            'Q1?\nOptions: A\n\nQ2?\nOptions: B'
+        );
+    });
+
+    test('formats the user answer from toolUseResult', () => {
+        const msg = {
+            type: 'user',
+            message: {
+                role: 'user',
+                content: [{ type: 'tool_result', content: 'raw text', tool_use_id: 'x' }],
+            },
+            toolUseResult: {
+                questions: [{ question: 'Which approach?' }],
+                answers: { 'Which approach?': 'Option A' },
+            },
+        };
+        assert.strictEqual(extractClaudeInteractiveText(msg), 'Which approach? → Option A');
+    });
+
+    test('ignores tool_use blocks for tools other than AskUserQuestion', () => {
+        const msg = {
+            type: 'assistant',
+            message: {
+                role: 'assistant',
+                content: [{ type: 'tool_use', name: 'Bash', input: { command: 'ls' } }],
+            },
+        };
+        assert.strictEqual(extractClaudeInteractiveText(msg), '');
+    });
+
+    test('returns empty string when there is no toolUseResult', () => {
+        const msg = { type: 'user', message: { role: 'user', content: 'plain text' } };
+        assert.strictEqual(extractClaudeInteractiveText(msg), '');
+    });
+});
+
+// ---------------------------------------------------------------------------
 // extractLogMessage — claude
 // ---------------------------------------------------------------------------
 
@@ -190,6 +271,35 @@ suite('extractLogMessage (claude)', () => {
 
     test('returns null for invalid JSON', () => {
         assert.strictEqual(extractLogMessage('{bad json', 'claude'), null);
+    });
+
+    test('parses an interactive AskUserQuestion prompt from the assistant', () => {
+        const line = JSON.stringify({
+            type: 'assistant',
+            message: {
+                role: 'assistant',
+                content: [{
+                    type: 'tool_use',
+                    name: 'AskUserQuestion',
+                    input: { questions: [{ question: 'Proceed?', options: [{ label: 'Yes' }, { label: 'No' }] }] },
+                }],
+            },
+        });
+        const result = extractLogMessage(line, 'claude');
+        assert.deepStrictEqual(result, { role: 'assistant', content: 'Proceed?\nOptions: Yes | No' });
+    });
+
+    test('parses the user answer to an interactive question', () => {
+        const line = JSON.stringify({
+            type: 'user',
+            message: {
+                role: 'user',
+                content: [{ type: 'tool_result', content: 'raw', tool_use_id: 'x' }],
+            },
+            toolUseResult: { questions: [{ question: 'Proceed?' }], answers: { 'Proceed?': 'Yes' } },
+        });
+        const result = extractLogMessage(line, 'claude');
+        assert.deepStrictEqual(result, { role: 'user', content: 'Proceed? → Yes' });
     });
 });
 

@@ -22,7 +22,37 @@
     "onStartupFinished"
   ],
   "main": "./dist/extension.js",
-  "contributes": {},
+  "contributes": {
+    "configuration": {
+      "title": "Cognitrace",
+      "properties": {
+        "cognitrace.enabled": {
+          "type": "boolean",
+          "default": false,
+          "scope": "resource",
+          "description": "Enable Cognitrace logging for this project. Disabled by default — turn it on from the Cognitrace icon in the Activity Bar."
+        }
+      }
+    },
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "cognitrace",
+          "title": "Cognitrace",
+          "icon": "assets/cognitrace.svg"
+        }
+      ]
+    },
+    "views": {
+      "cognitrace": [
+        {
+          "id": "cognitrace.configView",
+          "name": "Configuration",
+          "type": "webview"
+        }
+      ]
+    }
+  },
   "scripts": {
     "vscode:prepublish": "yarn run package",
     "vsce": "vsce",

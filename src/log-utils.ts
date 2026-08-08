@@ -17,7 +17,11 @@ export interface ClaudeTranscriptMessage {
     type: string;
     message?: {
         role: string;
-        content: string | Array<{ type: string; text?: string; thinking?: string }>;
+        content: string | Array<{ type: string; text?: string; thinking?: string; name?: string; input?: any }>;
+    };
+    toolUseResult?: {
+        questions?: Array<{ question: string }>;
+        answers?: Record<string, string>;
     };
 }
 
@@ -46,6 +50,43 @@ export function extractClaudeText(msg: ClaudeTranscriptMessage): string {
     }
 
     return msg.type === 'user' ? stripContextTags(raw) : raw.trim();
+}
+
+function formatAskUserQuestions(questions: Array<{ question: string; options?: Array<{ label: string }> }>): string {
+    return questions
+        .map(q => {
+            const options = (q.options ?? []).map(o => o.label).filter(Boolean).join(' | ');
+            return options ? `${q.question}\nOptions: ${options}` : q.question;
+        })
+        .join('\n\n');
+}
+
+export function extractClaudeInteractiveText(msg: ClaudeTranscriptMessage): string {
+    if (msg.type === 'assistant') {
+        const content = msg.message?.content;
+        if (!Array.isArray(content)) { return ''; }
+
+        const prompts = content
+            .filter(c => c.type === 'tool_use' && c.name === 'AskUserQuestion')
+            .map(c => formatAskUserQuestions(c.input?.questions ?? []))
+            .filter(Boolean);
+
+        return prompts.join('\n\n');
+    }
+
+    if (msg.type === 'user') {
+        const answers = msg.toolUseResult?.answers;
+        if (!answers) { return ''; }
+
+        const questions = msg.toolUseResult?.questions ?? [];
+        const pairs = questions.length
+            ? questions.map(q => `${q.question} → ${answers[q.question] ?? ''}`)
+            : Object.entries(answers).map(([question, answer]) => `${question} → ${answer}`);
+
+        return pairs.filter(Boolean).join('\n');
+    }
+
+    return '';
 }
 
 function extractCopilotUserText(request: any): string {
@@ -171,9 +212,11 @@ export function extractLogMessages(
     if (source === 'claude') {
         if (msg.type !== 'user' && msg.type !== 'assistant') { return []; }
         const text = extractClaudeText(msg as ClaudeTranscriptMessage);
-        if (!text) { return []; }
+        const interactiveText = extractClaudeInteractiveText(msg as ClaudeTranscriptMessage);
+        const content = [text, interactiveText].filter(Boolean).join('\n\n');
+        if (!content) { return []; }
         const timestamp = typeof msg.timestamp === 'string' ? msg.timestamp : undefined;
-        return [{ role: msg.type, content: text, timestamp }];
+        return [{ role: msg.type, content, timestamp }];
     }
 
     if (source === 'github_copilot') {
