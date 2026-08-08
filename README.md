@@ -11,7 +11,7 @@ Cognitrace logs interactions with AI coding assistants — prompts and responses
 - **Claude Code** (VS Code extension and CLI)
 - **GitHub Copilot Chat**
 - **OpenAI Codex CLI**
-- **Antigravity**
+- **Gemini/Antigravity**
 
 ## Enabling logging for a project
 
