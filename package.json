@@ -2,7 +2,7 @@
   "name": "cognitrace",
   "displayName": "Cognitrace",
   "description": "Logs prompts sent to AI agents",
-  "version": "1.4.1",
+  "version": "1.4.2",
   "icon": "assets/cognitrace.png",
   "publisher": "schardosim",
   "license": "MIT",

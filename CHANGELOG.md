@@ -1,3 +1,10 @@
+## [1.4.2](https://github.com/simaoj/cognitrace/compare/v1.4.1...v1.4.2) (2026-09-15)
+
+
+### Bug Fixes
+
+* workflow ([193555f](https://github.com/simaoj/cognitrace/commit/193555f366236782126254f4bf2e7675d1dc9d73))
+
 ## [1.4.1](https://github.com/simaoj/cognitrace/compare/v1.4.0...v1.4.1) (2026-09-15)
 
 
