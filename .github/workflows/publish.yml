@@ -30,7 +30,8 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           VSCE_PAT: ${{ secrets.VSCE_PAT }}
           # Baked into the bundle at package time by webpack.config.js's DefinePlugin — see
-          # src/api-client.ts. Set this repo secret so published .vsix builds know where to
-          # send logs without students configuring anything.
-          COGNITRACE_API_URL: ${{ secrets.COGNITRACE_API_URL }}
+          # src/api-client.ts. Set this repo variable so published .vsix builds know where to
+          # send logs without students configuring anything. A variable, not a secret: it ends
+          # up readable in the public .vsix bundle anyway, so there's nothing to keep hidden.
+          COGNITRACE_API_URL: ${{ vars.COGNITRACE_API_URL }}
 
