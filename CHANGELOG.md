@@ -1,3 +1,10 @@
+## [1.4.3](https://github.com/simaoj/cognitrace/compare/v1.4.2...v1.4.3) (2026-09-15)
+
+
+### Bug Fixes
+
+* api url ([560dbd5](https://github.com/simaoj/cognitrace/commit/560dbd50945fe58dc10f80e65e57c1ced00aae0d))
+
 ## [1.4.2](https://github.com/simaoj/cognitrace/compare/v1.4.1...v1.4.2) (2026-09-15)
 
 
