@@ -1,3 +1,10 @@
+# [1.3.0](https://github.com/simaoj/cognitrace/compare/v1.2.0...v1.3.0) (2026-08-08)
+
+
+### Features
+
+* update readme ([7873ff3](https://github.com/simaoj/cognitrace/commit/7873ff3a133db69033de8daa0943d15f5dbb85e2))
+
 # [1.2.0](https://github.com/simaoj/cognitrace/compare/v1.1.0...v1.2.0) (2026-08-08)
 
 
