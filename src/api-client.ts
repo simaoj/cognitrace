@@ -2,9 +2,9 @@ import { LogEntry } from './log-utils';
 
 // Baked in at build time (see webpack.config.js's DefinePlugin) from whichever environment ran
 // the build — so a packaged extension already knows where to send logs, and nobody using it has
-// to configure a URL themselves. Empty when a build didn't set COGNITRACE_API_URL, in which case
-// remote sync just never fires.
-export const API_BASE_URL: string = (process.env.COGNITRACE_API_URL ?? '').trim();
+// to configure a URL themselves. Falls back to the hosted default so a build never ships without
+// remote sync just because COGNITRACE_API_URL wasn't set.
+export const API_BASE_URL: string = (process.env.COGNITRACE_API_URL || 'https://sail-mmte.onrender.com').trim();
 
 export interface ApiConfig {
     apiUrl: string;
