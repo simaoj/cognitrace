@@ -190,7 +190,6 @@ export class ConfigViewProvider implements vscode.WebviewViewProvider {
 <style>${this.baseStyles()}</style>
 </head>
 <body>
-<p>Cognitrace logs prompts and responses from AI assistants into <code>.ai_log/</code> at the root of this project.</p>
 <div class="row">
 <span>Status</span>
 <span id="status" class="status"></span>
