@@ -6,11 +6,18 @@ import {
     stripContextTags,
     extractClaudeText,
     extractClaudeInteractiveText,
+    extractClaudeContextFiles,
     extractLogMessages,
     extractLogMessage,
     appendToLog,
     buildLogFilePath,
+    buildTerminalContent,
+    classifyExitCode,
     computeProjectKey,
+    deriveSessionId,
+    shouldLogFileChange,
+    stripAnsiCodes,
+    truncateOutput,
     LogEntry,
 } from '../log-utils';
 
@@ -26,8 +33,7 @@ function baseEntry(overrides: Partial<LogEntry> = {}): LogEntry {
     return {
         timestamp: '2025-04-12T10:00:00.000Z',
         source: 'claude',
-        git_branch: 'main',
-        git_user_name: 'Jane Doe',
+        user_id: 'Jane Doe',
         call_context: { cwd: '/workspace' },
         role: 'user',
         content: 'hello',
@@ -231,6 +237,90 @@ suite('extractClaudeInteractiveText', () => {
 });
 
 // ---------------------------------------------------------------------------
+// extractClaudeContextFiles
+// ---------------------------------------------------------------------------
+
+suite('extractClaudeContextFiles', () => {
+    test('extracts the file path from a Read tool_use call', () => {
+        const msg = {
+            type: 'assistant',
+            message: {
+                role: 'assistant',
+                content: [{ type: 'tool_use', name: 'Read', input: { file_path: '/repo/src/index.ts' } }],
+            },
+        };
+        assert.deepStrictEqual(extractClaudeContextFiles(msg), ['/repo/src/index.ts']);
+    });
+
+    test('extracts multiple Read calls from one assistant turn', () => {
+        const msg = {
+            type: 'assistant',
+            message: {
+                role: 'assistant',
+                content: [
+                    { type: 'tool_use', name: 'Read', input: { file_path: '/repo/a.ts' } },
+                    { type: 'text', text: 'looking at both files' },
+                    { type: 'tool_use', name: 'Read', input: { file_path: '/repo/b.ts' } },
+                ],
+            },
+        };
+        assert.deepStrictEqual(extractClaudeContextFiles(msg), ['/repo/a.ts', '/repo/b.ts']);
+    });
+
+    test('ignores tool_use calls for tools other than Read', () => {
+        const msg = {
+            type: 'assistant',
+            message: {
+                role: 'assistant',
+                content: [{ type: 'tool_use', name: 'Bash', input: { command: 'ls' } }],
+            },
+        };
+        assert.deepStrictEqual(extractClaudeContextFiles(msg), []);
+    });
+
+    test('extracts the file path from an ide_opened_file tag', () => {
+        const msg = {
+            type: 'user',
+            message: {
+                role: 'user',
+                content: '<ide_opened_file>The user opened the file /repo/README.md in the IDE. This may or may not be related to the current task.</ide_opened_file>',
+            },
+        };
+        assert.deepStrictEqual(extractClaudeContextFiles(msg), ['/repo/README.md']);
+    });
+
+    test('extracts the file path from an ide_selection tag', () => {
+        const msg = {
+            type: 'user',
+            message: {
+                role: 'user',
+                content: '<ide_selection>The user selected the lines 10 to 20 from /repo/src/index.ts:\nsome code\n\nThis may or may not be related to the current task.</ide_selection>',
+            },
+        };
+        assert.deepStrictEqual(extractClaudeContextFiles(msg), ['/repo/src/index.ts']);
+    });
+
+    test('extracts both an opened file and a selection from the same message', () => {
+        const msg = {
+            type: 'user',
+            message: {
+                role: 'user',
+                content: [{
+                    type: 'text',
+                    text: '<ide_opened_file>The user opened the file /repo/a.ts in the IDE. This may or may not be related to the current task.</ide_opened_file>\n<ide_selection>The user selected the lines 1 to 2 from /repo/b.ts:\ncode\n\nThis may or may not be related to the current task.</ide_selection>\nactual prompt',
+                }],
+            },
+        };
+        assert.deepStrictEqual(extractClaudeContextFiles(msg), ['/repo/a.ts', '/repo/b.ts']);
+    });
+
+    test('returns empty array when there are no context tags', () => {
+        const msg = { type: 'user', message: { role: 'user', content: 'plain prompt' } };
+        assert.deepStrictEqual(extractClaudeContextFiles(msg), []);
+    });
+});
+
+// ---------------------------------------------------------------------------
 // extractLogMessage — claude
 // ---------------------------------------------------------------------------
 
@@ -300,6 +390,50 @@ suite('extractLogMessage (claude)', () => {
         });
         const result = extractLogMessage(line, 'claude');
         assert.deepStrictEqual(result, { role: 'user', content: 'Proceed? → Yes' });
+    });
+
+    test('emits a context_file entry for a Read call with no accompanying text', () => {
+        const line = JSON.stringify({
+            type: 'assistant',
+            message: {
+                role: 'assistant',
+                content: [{ type: 'tool_use', name: 'Read', input: { file_path: '/repo/a.ts' } }],
+            },
+        });
+        assert.deepStrictEqual(extractLogMessages(line, 'claude'), [
+            { role: 'context_file', content: '/repo/a.ts', timestamp: undefined },
+        ]);
+    });
+
+    test('emits both an assistant message and a context_file entry in the same turn', () => {
+        const line = JSON.stringify({
+            type: 'assistant',
+            message: {
+                role: 'assistant',
+                content: [
+                    { type: 'text', text: 'let me check that file' },
+                    { type: 'tool_use', name: 'Read', input: { file_path: '/repo/a.ts' } },
+                ],
+            },
+        });
+        assert.deepStrictEqual(extractLogMessages(line, 'claude'), [
+            { role: 'assistant', content: 'let me check that file', timestamp: undefined },
+            { role: 'context_file', content: '/repo/a.ts', timestamp: undefined },
+        ]);
+    });
+
+    test('emits a context_file entry for an ide_opened_file tag alongside the stripped user prompt', () => {
+        const line = JSON.stringify({
+            type: 'user',
+            message: {
+                role: 'user',
+                content: '<ide_opened_file>The user opened the file /repo/README.md in the IDE. This may or may not be related to the current task.</ide_opened_file>\nfix the typo',
+            },
+        });
+        assert.deepStrictEqual(extractLogMessages(line, 'claude'), [
+            { role: 'user', content: 'fix the typo', timestamp: undefined },
+            { role: 'context_file', content: '/repo/README.md', timestamp: undefined },
+        ]);
     });
 });
 
@@ -490,23 +624,172 @@ suite('computeProjectKey', () => {
 });
 
 // ---------------------------------------------------------------------------
+// deriveSessionId
+// ---------------------------------------------------------------------------
+
+suite('deriveSessionId', () => {
+    test('uses the bare filename for a claude transcript', () => {
+        const p = '/Users/jane/.claude/projects/-app/4f3a5a8f-3708-4b89-b646-a9653e2c45a9.jsonl';
+        assert.strictEqual(deriveSessionId(p, 'claude'), '4f3a5a8f-3708-4b89-b646-a9653e2c45a9');
+    });
+
+    test('extracts the session id from a codex rollout filename', () => {
+        const p = '/Users/jane/.codex/sessions/2026/03/09/rollout-2026-03-09T21-54-32-019cd53d-090a-7192-a36f-3573b211d60d.jsonl';
+        assert.strictEqual(deriveSessionId(p, 'codex'), '019cd53d-090a-7192-a36f-3573b211d60d');
+    });
+
+    test('falls back to the bare filename for an unrecognised codex filename shape', () => {
+        const p = '/Users/jane/.codex/sessions/unexpected-name.jsonl';
+        assert.strictEqual(deriveSessionId(p, 'codex'), 'unexpected-name');
+    });
+
+    test('uses the bare filename for github_copilot and antigravity transcripts', () => {
+        assert.strictEqual(
+            deriveSessionId('/storage/chatSessions/abc-123.jsonl', 'github_copilot'),
+            'abc-123'
+        );
+        assert.strictEqual(
+            deriveSessionId('/brain/xyz-789.jsonl', 'antigravity'),
+            'xyz-789'
+        );
+    });
+});
+
+// ---------------------------------------------------------------------------
 // buildLogFilePath
 // ---------------------------------------------------------------------------
 
 suite('buildLogFilePath', () => {
     test('uses date part from timestamp', () => {
-        const p = buildLogFilePath('/log', { timestamp: '2025-04-12T10:00:00.000Z', git_user_name: 'alice' });
+        const p = buildLogFilePath('/log', { timestamp: '2025-04-12T10:00:00.000Z', user_id: 'alice' });
         assert.ok(p.includes('2025-04-12'));
     });
 
-    test('slugifies git_user_name', () => {
-        const p = buildLogFilePath('/log', { timestamp: '2025-04-12T10:00:00.000Z', git_user_name: 'Jane Doe' });
+    test('slugifies user_id', () => {
+        const p = buildLogFilePath('/log', { timestamp: '2025-04-12T10:00:00.000Z', user_id: 'Jane Doe' });
         assert.ok(p.includes('jane-doe'));
     });
 
     test('falls back to "unknown" for empty user name', () => {
-        const p = buildLogFilePath('/log', { timestamp: '2025-04-12T10:00:00.000Z', git_user_name: '' });
+        const p = buildLogFilePath('/log', { timestamp: '2025-04-12T10:00:00.000Z', user_id: '' });
         assert.ok(path.basename(p).includes('unknown'));
+    });
+});
+
+// ---------------------------------------------------------------------------
+// classifyExitCode
+// ---------------------------------------------------------------------------
+
+suite('classifyExitCode', () => {
+    test('exit code 0 is success', () => {
+        assert.strictEqual(classifyExitCode(0), 'success');
+    });
+
+    test('non-zero exit code is error', () => {
+        assert.strictEqual(classifyExitCode(1), 'error');
+        assert.strictEqual(classifyExitCode(127), 'error');
+    });
+
+    test('undefined exit code is unknown', () => {
+        assert.strictEqual(classifyExitCode(undefined), 'unknown');
+    });
+});
+
+// ---------------------------------------------------------------------------
+// stripAnsiCodes
+// ---------------------------------------------------------------------------
+
+suite('stripAnsiCodes', () => {
+    test('removes color codes', () => {
+        assert.strictEqual(stripAnsiCodes('\x1b[32mok\x1b[0m'), 'ok');
+    });
+
+    test('removes cursor movement codes', () => {
+        assert.strictEqual(stripAnsiCodes('\x1b[2K\x1b[1Gloading'), 'loading');
+    });
+
+    test('leaves plain text unchanged', () => {
+        assert.strictEqual(stripAnsiCodes('plain output'), 'plain output');
+    });
+});
+
+// ---------------------------------------------------------------------------
+// truncateOutput
+// ---------------------------------------------------------------------------
+
+suite('truncateOutput', () => {
+    test('leaves short text unchanged', () => {
+        assert.strictEqual(truncateOutput('hello', 10), 'hello');
+    });
+
+    test('truncates text longer than the limit', () => {
+        const result = truncateOutput('a'.repeat(20), 10);
+        assert.strictEqual(result, `${'a'.repeat(10)}\n...[truncated]`);
+    });
+});
+
+// ---------------------------------------------------------------------------
+// buildTerminalContent
+// ---------------------------------------------------------------------------
+
+suite('buildTerminalContent', () => {
+    test('formats a command with no output', () => {
+        assert.strictEqual(buildTerminalContent('ls -la', ''), '$ ls -la');
+    });
+
+    test('formats a command with output', () => {
+        assert.strictEqual(
+            buildTerminalContent('echo hi', 'hi\n'),
+            '$ echo hi\nhi'
+        );
+    });
+
+    test('strips ANSI codes from output', () => {
+        assert.strictEqual(
+            buildTerminalContent('npm test', '\x1b[32mPASS\x1b[0m'),
+            '$ npm test\nPASS'
+        );
+    });
+});
+
+// ---------------------------------------------------------------------------
+// shouldLogFileChange
+// ---------------------------------------------------------------------------
+
+suite('shouldLogFileChange', () => {
+    const workspace = '/Users/jane/projects/my-app';
+    const logDir = path.join(workspace, '.ai_log');
+
+    test('allows a file inside the workspace', () => {
+        assert.strictEqual(
+            shouldLogFileChange(workspace, logDir, path.join(workspace, 'src', 'index.ts')),
+            true
+        );
+    });
+
+    test('rejects a file outside the workspace', () => {
+        assert.strictEqual(
+            shouldLogFileChange(workspace, logDir, '/Users/jane/other-project/file.ts'),
+            false
+        );
+    });
+
+    test('rejects a file inside .ai_log', () => {
+        assert.strictEqual(
+            shouldLogFileChange(workspace, logDir, path.join(logDir, 'prompt_log_2025-01-01_jane.json')),
+            false
+        );
+    });
+
+    test('rejects the .ai_log directory itself', () => {
+        assert.strictEqual(shouldLogFileChange(workspace, logDir, logDir), false);
+    });
+
+    test('does not treat a sibling directory with a similar name as inside the workspace', () => {
+        assert.strictEqual(
+            shouldLogFileChange(workspace, logDir, `${workspace}-other/file.ts`),
+            false
+        );
     });
 });
 
@@ -545,6 +828,12 @@ suite('appendToLog', () => {
         assert.strictEqual(entries[1].content, 'second');
     });
 
+    test('returns the file\'s new entry count', () => {
+        const stamp = '2025-04-12T10:00:00.000Z';
+        assert.strictEqual(appendToLog(tmpDir, baseEntry({ timestamp: stamp, content: 'first' })), 1);
+        assert.strictEqual(appendToLog(tmpDir, baseEntry({ timestamp: stamp, content: 'second' })), 2);
+    });
+
     test('creates separate files for different dates', () => {
         appendToLog(tmpDir, baseEntry({ timestamp: '2025-04-12T10:00:00.000Z' }));
         appendToLog(tmpDir, baseEntry({ timestamp: '2025-04-13T10:00:00.000Z' }));
@@ -570,6 +859,23 @@ suite('appendToLog', () => {
         assert.strictEqual(saved.source, 'codex');
         assert.strictEqual(saved.role, 'assistant');
         assert.strictEqual(saved.content, 'full entry');
-        assert.strictEqual(saved.git_branch, 'main');
+        assert.strictEqual(saved.user_id, 'Jane Doe');
+    });
+
+    test('preserves terminal-specific fields', () => {
+        const entry = baseEntry({
+            source: 'terminal',
+            role: 'terminal',
+            content: '$ npm test\nfailed',
+            exit_code: 1,
+            status: 'error',
+        });
+        appendToLog(tmpDir, entry);
+        const files = fs.readdirSync(tmpDir).filter(f => f.endsWith('.json'));
+        const [saved] = JSON.parse(fs.readFileSync(path.join(tmpDir, files[0]), 'utf8'));
+        assert.strictEqual(saved.source, 'terminal');
+        assert.strictEqual(saved.role, 'terminal');
+        assert.strictEqual(saved.exit_code, 1);
+        assert.strictEqual(saved.status, 'error');
     });
 });

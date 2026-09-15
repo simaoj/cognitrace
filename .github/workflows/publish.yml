@@ -29,4 +29,8 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           VSCE_PAT: ${{ secrets.VSCE_PAT }}
+          # Baked into the bundle at package time by webpack.config.js's DefinePlugin — see
+          # src/api-client.ts. Set this repo secret so published .vsix builds know where to
+          # send logs without students configuring anything.
+          COGNITRACE_API_URL: ${{ secrets.COGNITRACE_API_URL }}
 

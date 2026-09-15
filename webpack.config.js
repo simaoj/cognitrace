@@ -3,6 +3,13 @@
 'use strict';
 
 const path = require('path');
+const webpack = require('webpack');
+
+// Loads COGNITRACE_API_URL (and anything else) from a local .env file into process.env for local
+// builds (yarn compile / watch / package). Never overrides a variable already set in the
+// environment, so CI — which sets it directly from a repo secret — is unaffected. No-op if there's
+// no .env file.
+require('dotenv').config();
 
 //@ts-check
 /** @typedef {import('webpack').Configuration} WebpackConfig **/
@@ -40,6 +47,15 @@ const extensionConfig = {
       }
     ]
   },
+  plugins: [
+    // Bakes the ingest API's base URL into the bundle at build/package time, from whichever
+    // environment set COGNITRACE_API_URL when webpack ran — so a packaged .vsix already knows
+    // where to send logs and students never have to configure a URL (or an API key: their user
+    // code doubles as the key, see api-client.ts).
+    new webpack.DefinePlugin({
+      'process.env.COGNITRACE_API_URL': JSON.stringify(process.env.COGNITRACE_API_URL || '')
+    })
+  ],
   devtool: 'nosources-source-map',
   infrastructureLogging: {
     level: "log", // enables logging required for problem matchers

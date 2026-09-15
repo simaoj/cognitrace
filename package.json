@@ -31,6 +31,24 @@
           "default": false,
           "scope": "resource",
           "description": "Enable Cognitrace logging for this project. Disabled by default — turn it on from the Cognitrace icon in the Activity Bar."
+        },
+        "cognitrace.userIdManualCode": {
+          "type": "string",
+          "default": "",
+          "scope": "resource",
+          "description": "Your user code, identifying who made each log entry. Required — entries are tagged \"unknown\" until it's set. Also doubles as the API key: setting it automatically enables remote sync to this build's configured Cognitrace API, no separate toggle needed."
+        },
+        "cognitrace.saveLocally": {
+          "type": "boolean",
+          "default": true,
+          "scope": "resource",
+          "description": "Write log entries to .ai_log/ in this workspace. Independent of remote sync, which happens automatically once cognitrace.userIdManualCode is set — you can save locally, sync, both, or neither."
+        },
+        "cognitrace.projectId": {
+          "type": "string",
+          "default": "",
+          "scope": "resource",
+          "description": "Which of your linked projects this workspace's log entries are tagged with. Set from the project dropdown in the Cognitrace panel; empty means the project is auto-detected from this folder instead."
         }
       }
     },
@@ -66,8 +84,6 @@
     "test": "vscode-test"
   },
   "devDependencies": {
-    "@vscode/vsce": "^3.0.0",
-    "semantic-release": "^24.0.0",
     "@semantic-release/changelog": "^6.0.0",
     "@semantic-release/exec": "^6.0.0",
     "@semantic-release/git": "^10.0.0",
@@ -76,7 +92,10 @@
     "@types/vscode": "^1.107.0",
     "@vscode/test-cli": "^0.0.12",
     "@vscode/test-electron": "^2.5.2",
+    "@vscode/vsce": "^3.0.0",
+    "dotenv": "^17.4.2",
     "eslint": "^9.39.3",
+    "semantic-release": "^24.0.0",
     "ts-loader": "^9.5.4",
     "typescript": "^5.9.3",
     "typescript-eslint": "^8.56.1",
