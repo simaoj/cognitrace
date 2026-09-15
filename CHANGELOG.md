@@ -1,3 +1,10 @@
+# [1.4.0](https://github.com/simaoj/cognitrace/compare/v1.3.0...v1.4.0) (2026-09-15)
+
+
+### Features
+
+* adding backend ([9e82452](https://github.com/simaoj/cognitrace/commit/9e824521649e26095f5005a046eb84024199d1c4))
+
 # [1.3.0](https://github.com/simaoj/cognitrace/compare/v1.2.0...v1.3.0) (2026-08-08)
 
 
