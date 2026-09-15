@@ -1,3 +1,10 @@
+## [1.4.1](https://github.com/simaoj/cognitrace/compare/v1.4.0...v1.4.1) (2026-09-15)
+
+
+### Bug Fixes
+
+* remove description ([dd825f9](https://github.com/simaoj/cognitrace/commit/dd825f9f2c9947f81e742b9db4cf48be149d13f0))
+
 # [1.4.0](https://github.com/simaoj/cognitrace/compare/v1.3.0...v1.4.0) (2026-09-15)
 
 
